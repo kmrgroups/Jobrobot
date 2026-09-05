@@ -8,18 +8,29 @@ export default function HomePage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    const res = await fetch("/api/auth", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    });
-    const data = await res.json();
-    setCurrentUser(data);
-    router.push("/onboarding");
+    setError(null);
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) {
+        throw new Error(data?.error || `Sign-in failed (${res.status})`);
+      }
+      setCurrentUser(data);
+      router.push("/onboarding");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -44,6 +55,7 @@ export default function HomePage() {
         >
           {loading ? "Continuing…" : "Continue"}
         </button>
+        {error && <p className="text-sm text-red-600">{error}</p>}
       </form>
     </main>
   );
