@@ -1,7 +1,10 @@
 import { Resend } from "resend";
 import { getSettings } from "./settings";
+import { db } from "./db";
 
 export interface ApplicationNotification {
+  userId: string;
+  applicationId: string;
   toEmail: string;
   toPhone?: string; // E.164 format, e.g. +919876543210
   company: string;
@@ -10,6 +13,19 @@ export interface ApplicationNotification {
   ctc?: string;
   jobUrl: string;
   appliedAt: Date;
+}
+
+// Always succeeds (no third-party keys needed) — this is what powers the
+// bell icon in the nav bar, independent of whether email/WhatsApp are set up.
+export async function createAppNotification(n: ApplicationNotification) {
+  await db.notification.create({
+    data: {
+      userId: n.userId,
+      applicationId: n.applicationId,
+      title: `Applied: ${n.title} at ${n.company}`,
+      message: `${n.location} · CTC ${n.ctc ?? "not listed"} · ${n.appliedAt.toLocaleString()}`,
+    },
+  });
 }
 
 export async function sendEmailNotification(n: ApplicationNotification) {
@@ -33,6 +49,7 @@ export async function sendEmailNotification(n: ApplicationNotification) {
         <li><b>Date:</b> ${dateStr}</li>
         <li><b>Time:</b> ${timeStr}</li>
         <li><b>Company:</b> ${n.company}</li>
+        <li><b>Designation / Position:</b> ${n.title}</li>
         <li><b>Location:</b> ${n.location}</li>
         <li><b>CTC:</b> ${n.ctc ?? "Not listed"}</li>
         <li><b>Job link:</b> <a href="${n.jobUrl}">${n.jobUrl}</a></li>
@@ -54,7 +71,7 @@ export async function sendWhatsAppNotification(n: ApplicationNotification) {
   const timeStr = n.appliedAt.toLocaleTimeString();
 
   const body =
-    `Applied to ${n.title} at ${n.company}\n` +
+    `✅ Applied to ${n.title} at ${n.company}\n` +
     `Date: ${dateStr} ${timeStr}\n` +
     `Location: ${n.location}\n` +
     `CTC: ${n.ctc ?? "Not listed"}\n` +

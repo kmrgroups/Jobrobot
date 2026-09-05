@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { sendEmailNotification, sendWhatsAppNotification } from "@/lib/notify";
+import { sendEmailNotification, sendWhatsAppNotification, createAppNotification } from "@/lib/notify";
 import { getSettings } from "@/lib/settings";
 
 // Never statically render/cache this route — it reads request-time
@@ -26,6 +26,8 @@ export async function POST(req: NextRequest) {
     const user = await db.user.findUnique({ where: { id: userId }, include: { profile: true } });
     if (user) {
       const payload = {
+        userId,
+        applicationId: application.id,
         toEmail: user.email,
         toPhone: user.profile?.phone ?? undefined,
         company,
@@ -35,8 +37,12 @@ export async function POST(req: NextRequest) {
         jobUrl,
         appliedAt: application.appliedAt,
       };
-      // Fire both, don't let one failure block the other
-      await Promise.allSettled([sendEmailNotification(payload), sendWhatsAppNotification(payload)]);
+      // Fire all three (email, WhatsApp, in-app), don't let one failure block another
+      await Promise.allSettled([
+        sendEmailNotification(payload),
+        sendWhatsAppNotification(payload),
+        createAppNotification(payload),
+      ]);
     }
   }
 

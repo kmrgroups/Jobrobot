@@ -15,6 +15,7 @@ model User {
   profile     Profile?
   credentials PortalCredential[]
   applications Application[]
+  notifications Notification[]
 }
 
 // One-time setup data: resume + structured profile used for match scoring
@@ -72,6 +73,25 @@ model Application {
   matchScore   Int
   status       ApplicationStatus
   appliedAt    DateTime          @default(now())
+
+  notifications Notification[]
+}
+
+// In-app notification feed (the bell icon in the nav). Created alongside
+// every email/WhatsApp notification so the same event shows up inside the
+// app too, even if email/WhatsApp aren't configured yet.
+model Notification {
+  id            String        @id @default(cuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  applicationId String?
+  application   Application?  @relation(fields: [applicationId], references: [id])
+  title         String
+  message       String
+  read          Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+
+  @@index([userId, read])
 }
 
 // Singleton row holding every secret/key the app needs, entered through the

@@ -1,13 +1,41 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getCurrentUser } from "@/lib/currentUser";
 
+interface ProfileForm {
+  resumeText: string;
+  skills: string;
+  yearsExp: string;
+  desiredRoles: string;
+  desiredLocations: string;
+  minCTC: string;
+  phone: string;
+}
+
+const EMPTY_FORM: ProfileForm = {
+  resumeText: "",
+  skills: "",
+  yearsExp: "",
+  desiredRoles: "",
+  desiredLocations: "",
+  minCTC: "",
+  phone: "",
+};
+
 export default function OnboardingPage() {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [form, setForm] = useState<ProfileForm>(EMPTY_FORM);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [autoFilled, setAutoFilled] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
   useEffect(() => {
     const user = getCurrentUser();
@@ -18,29 +46,71 @@ export default function OnboardingPage() {
     setUserId(user.userId);
   }, [router]);
 
+  function update<K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleFile(file: File) {
+    setParseError(null);
+    setParsing(true);
+    setFileName(file.name);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/resume/parse", { method: "POST", body });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't parse that file.");
+
+      setForm((prev) => ({
+        ...prev,
+        resumeText: data.fullText ?? prev.resumeText,
+        skills: data.skills?.length ? data.skills.join(", ") : prev.skills,
+        yearsExp: data.yearsExp !== undefined ? String(data.yearsExp) : prev.yearsExp,
+        desiredRoles: data.desiredRoles?.length ? data.desiredRoles.join(", ") : prev.desiredRoles,
+        phone: data.phone ?? prev.phone,
+      }));
+      setAutoFilled(true);
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : "Something went wrong reading that file.");
+    } finally {
+      setParsing(false);
+    }
+  }
+
+  function onDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFile(file);
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!userId) return;
-    const form = new FormData(e.currentTarget);
+    setSaving(true);
+    setStatus(null);
+
+    const formEl = e.currentTarget;
+    const fd = new FormData(formEl);
 
     await fetch("/api/profile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         userId,
-        resumeText: form.get("resumeText"),
-        skills: String(form.get("skills")).split(",").map((s) => s.trim()).filter(Boolean),
-        yearsExp: Number(form.get("yearsExp")) || undefined,
-        desiredRoles: String(form.get("desiredRoles")).split(",").map((s) => s.trim()).filter(Boolean),
-        desiredLocations: String(form.get("desiredLocations")).split(",").map((s) => s.trim()).filter(Boolean),
-        minCTC: Number(form.get("minCTC")) || undefined,
-        phone: form.get("phone"),
+        resumeText: form.resumeText,
+        skills: form.skills.split(",").map((s) => s.trim()).filter(Boolean),
+        yearsExp: Number(form.yearsExp) || undefined,
+        desiredRoles: form.desiredRoles.split(",").map((s) => s.trim()).filter(Boolean),
+        desiredLocations: form.desiredLocations.split(",").map((s) => s.trim()).filter(Boolean),
+        minCTC: Number(form.minCTC) || undefined,
+        phone: form.phone,
       }),
     });
 
     for (const portal of ["LINKEDIN", "NAUKRI"] as const) {
-      const username = form.get(`${portal}_username`);
-      const password = form.get(`${portal}_password`);
+      const username = fd.get(`${portal}_username`);
+      const password = fd.get(`${portal}_password`);
       if (username && password) {
         await fetch("/api/credentials", {
           method: "POST",
@@ -50,55 +120,149 @@ export default function OnboardingPage() {
       }
     }
 
+    setSaving(false);
     setStatus("Saved. The bot will use this the next time it runs.");
   }
 
-  if (!userId) return <main className="mx-auto max-w-2xl px-6 py-12 text-muted">Loading…</main>;
+  if (!userId) return <main className="mx-auto max-w-3xl px-6 py-12 text-muted">Loading…</main>;
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-12">
-      <h1 className="mb-2 text-2xl font-semibold text-ink">One-time setup</h1>
-      <p className="mb-8 text-sm text-muted">
-        This runs once. Come back to this page any time to update it.
+    <main className="mx-auto max-w-3xl px-6 py-12">
+      <h1 className="text-2xl font-bold text-ink">One-time setup</h1>
+      <p className="mt-1 text-sm text-muted">
+        Upload your resume to auto-fill this form, review the details, and add your portal logins.
+        Come back any time to update it.
       </p>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <textarea name="resumeText" placeholder="Paste your resume text" required rows={8}
-          className="w-full rounded-md border border-gray-300 px-3 py-2" />
+      <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+        {/* Step 1: Resume upload */}
+        <section className="card p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent text-xs font-bold text-white">1</span>
+            <h2 className="text-sm font-semibold text-ink">Upload your resume</h2>
+          </div>
 
-        <input name="skills" placeholder="Skills, comma separated"
-          className="w-full rounded-md border border-gray-300 px-3 py-2" />
-        <input name="yearsExp" type="number" placeholder="Years of experience"
-          className="w-full rounded-md border border-gray-300 px-3 py-2" />
-        <input name="desiredRoles" placeholder="Desired roles, comma separated"
-          className="w-full rounded-md border border-gray-300 px-3 py-2" />
-        <input name="desiredLocations" placeholder="Desired locations, comma separated"
-          className="w-full rounded-md border border-gray-300 px-3 py-2" />
-        <input name="minCTC" type="number" placeholder="Minimum CTC"
-          className="w-full rounded-md border border-gray-300 px-3 py-2" />
-        <input name="phone" placeholder="WhatsApp number, e.g. +919876543210"
-          className="w-full rounded-md border border-gray-300 px-3 py-2" />
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={onDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition ${
+              dragOver ? "border-accent bg-accent-light/40" : "border-border bg-paper hover:border-accent/50"
+            }`}
+          >
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mb-3 text-muted">
+              <path d="M12 16V4m0 0L7 9m5-5l5 5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <p className="text-sm font-medium text-ink">
+              {fileName ? fileName : "Drag & drop your resume, or click to browse"}
+            </p>
+            <p className="mt-1 text-xs text-muted">PDF or Word (.docx) — auto-fills the fields below</p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.docx,.txt"
+              className="hidden"
+              onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+            />
+          </div>
 
-        <fieldset className="rounded-md border border-gray-300 p-4">
-          <legend className="px-1 text-sm font-medium">LinkedIn login</legend>
-          <input name="LINKEDIN_username" placeholder="Username / email"
-            className="mb-2 w-full rounded-md border border-gray-300 px-3 py-2" />
-          <input name="LINKEDIN_password" type="password" placeholder="Password"
-            className="w-full rounded-md border border-gray-300 px-3 py-2" />
-        </fieldset>
+          {parsing && <p className="mt-3 text-sm text-accent">Reading your resume…</p>}
+          {parseError && <p className="mt-3 text-sm text-danger">{parseError}</p>}
+          {autoFilled && !parsing && (
+            <p className="mt-3 flex items-center gap-1.5 text-sm text-success">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              Auto-filled from your resume — double-check the fields below before saving.
+            </p>
+          )}
+        </section>
 
-        <fieldset className="rounded-md border border-gray-300 p-4">
-          <legend className="px-1 text-sm font-medium">Naukri login</legend>
-          <input name="NAUKRI_username" placeholder="Username / email"
-            className="mb-2 w-full rounded-md border border-gray-300 px-3 py-2" />
-          <input name="NAUKRI_password" type="password" placeholder="Password"
-            className="w-full rounded-md border border-gray-300 px-3 py-2" />
-        </fieldset>
+        {/* Step 2: Profile details */}
+        <section className="card p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent text-xs font-bold text-white">2</span>
+            <h2 className="text-sm font-semibold text-ink">Profile details</h2>
+          </div>
 
-        <button type="submit" className="rounded-md bg-accent px-4 py-2 font-medium text-white hover:opacity-90">
-          Save
-        </button>
-        {status && <p className="text-sm text-accent">{status}</p>}
+          <div className="space-y-4">
+            <div>
+              <label className="label">Resume text (used for match scoring)</label>
+              <textarea
+                required
+                rows={7}
+                value={form.resumeText}
+                onChange={(e) => update("resumeText", e.target.value)}
+                placeholder="Paste your resume text, or upload a file above to fill this in automatically"
+                className="input font-mono text-xs"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="label">Skills</label>
+                <input value={form.skills} onChange={(e) => update("skills", e.target.value)}
+                  placeholder="React, Node.js, SQL" className="input" />
+              </div>
+              <div>
+                <label className="label">Years of experience</label>
+                <input type="number" min={0} value={form.yearsExp} onChange={(e) => update("yearsExp", e.target.value)}
+                  placeholder="3" className="input" />
+              </div>
+              <div>
+                <label className="label">Desired roles</label>
+                <input value={form.desiredRoles} onChange={(e) => update("desiredRoles", e.target.value)}
+                  placeholder="Frontend Developer, Full Stack Developer" className="input" />
+              </div>
+              <div>
+                <label className="label">Desired locations</label>
+                <input value={form.desiredLocations} onChange={(e) => update("desiredLocations", e.target.value)}
+                  placeholder="Bengaluru, Remote" className="input" />
+              </div>
+              <div>
+                <label className="label">Minimum CTC (₹ LPA or annual)</label>
+                <input type="number" min={0} value={form.minCTC} onChange={(e) => update("minCTC", e.target.value)}
+                  placeholder="800000" className="input" />
+              </div>
+              <div>
+                <label className="label">WhatsApp number (for alerts)</label>
+                <input value={form.phone} onChange={(e) => update("phone", e.target.value)}
+                  placeholder="+919876543210" className="input" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Step 3: Portal logins */}
+        <section className="card p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent text-xs font-bold text-white">3</span>
+            <h2 className="text-sm font-semibold text-ink">Portal logins</h2>
+          </div>
+          <p className="mb-4 text-xs text-muted">
+            Stored encrypted (AES-256-GCM). Only decrypted in memory during an automation run.
+          </p>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <fieldset className="rounded-lg border border-border p-4">
+              <legend className="px-1 text-sm font-medium text-ink">LinkedIn</legend>
+              <input name="LINKEDIN_username" placeholder="Email" className="input mb-2" />
+              <input name="LINKEDIN_password" type="password" placeholder="Password" className="input" />
+            </fieldset>
+            <fieldset className="rounded-lg border border-border p-4">
+              <legend className="px-1 text-sm font-medium text-ink">Naukri</legend>
+              <input name="NAUKRI_username" placeholder="Email" className="input mb-2" />
+              <input name="NAUKRI_password" type="password" placeholder="Password" className="input" />
+            </fieldset>
+          </div>
+        </section>
+
+        <div className="flex items-center gap-4">
+          <button type="submit" disabled={saving} className="btn-primary">
+            {saving ? "Saving…" : "Save profile"}
+          </button>
+          {status && <p className="text-sm text-success">{status}</p>}
+        </div>
       </form>
     </main>
   );

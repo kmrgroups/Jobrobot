@@ -1,44 +1,71 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getCurrentUser, clearCurrentUser, CurrentUser } from "@/lib/currentUser";
-import { useRouter } from "next/navigation";
+import NotificationBell from "./notification-bell";
+
+const LINKS = [
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/onboarding", label: "Setup" },
+  { href: "/settings", label: "Settings" },
+  { href: "/setup-guide", label: "Deploy Guide" },
+];
 
 export default function Nav() {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     setUser(getCurrentUser());
   }, []);
 
   return (
-    <nav className="border-b border-gray-200 bg-white">
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3 text-sm">
-        <div className="flex items-center gap-6">
-          <Link href="/" className="font-semibold text-ink">Job Bot</Link>
+    <nav className="sticky top-0 z-40 border-b border-border bg-white/80 backdrop-blur">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
+        <div className="flex items-center gap-8">
+          <Link href="/" className="flex items-center gap-2 font-semibold text-ink">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-sm font-bold text-white">
+              J
+            </span>
+            <span>Job Bot</span>
+          </Link>
           {user && (
-            <>
-              <Link href="/dashboard" className="text-muted hover:text-ink">Dashboard</Link>
-              <Link href="/onboarding" className="text-muted hover:text-ink">Setup</Link>
-              <Link href="/settings" className="text-muted hover:text-ink">Settings</Link>
-            </>
+            <div className="hidden items-center gap-1 sm:flex">
+              {LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                    pathname === link.href
+                      ? "bg-accent-light text-accent"
+                      : "text-muted hover:bg-paper hover:text-ink"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
           )}
         </div>
         {user && (
-          <div className="flex items-center gap-3 text-muted">
-            <span>{user.email}</span>
-            <button
-              onClick={() => {
-                clearCurrentUser();
-                setUser(null);
-                router.push("/");
-              }}
-              className="text-accent hover:underline"
-            >
-              Switch account
-            </button>
+          <div className="flex items-center gap-3">
+            <NotificationBell user={user} />
+            <div className="hidden items-center gap-2 border-l border-border pl-3 sm:flex">
+              <span className="text-sm text-muted">{user.email}</span>
+              <button
+                onClick={() => {
+                  clearCurrentUser();
+                  setUser(null);
+                  router.push("/");
+                }}
+                className="text-sm font-medium text-accent hover:underline"
+              >
+                Switch
+              </button>
+            </div>
           </div>
         )}
       </div>
