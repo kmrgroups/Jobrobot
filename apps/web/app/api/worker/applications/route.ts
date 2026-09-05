@@ -3,6 +3,10 @@ import { db } from "@/lib/db";
 import { sendEmailNotification, sendWhatsAppNotification } from "@/lib/notify";
 import { getSettings } from "@/lib/settings";
 
+// Never statically render/cache this route — it reads request-time
+// headers/params and hits the database on every call.
+export const dynamic = "force-dynamic";
+
 // Called by the worker once per job it applied to. Writes the row the
 // dashboard reads, then fires email + WhatsApp notifications.
 export async function POST(req: NextRequest) {

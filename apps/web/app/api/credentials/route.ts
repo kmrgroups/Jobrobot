@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { encryptSecret } from "@/lib/crypto";
 
+// Never statically render/cache this route — it reads request-time
+// headers/params and hits the database on every call.
+export const dynamic = "force-dynamic";
+
 // User submits their LinkedIn/Naukri username + password once. Password is
 // encrypted immediately; the plaintext is never written to the database or logs.
 export async function POST(req: NextRequest) {

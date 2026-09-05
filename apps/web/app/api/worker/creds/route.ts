@@ -3,6 +3,10 @@ import { db } from "@/lib/db";
 import { decryptSecret } from "@/lib/crypto";
 import { getSettings } from "@/lib/settings";
 
+// Never statically render/cache this route — it reads request-time
+// headers/params and hits the database on every call.
+export const dynamic = "force-dynamic";
+
 // Called only by the GitHub Actions worker, authenticated with the
 // internalApiSecret shown on /settings (never exposed to the dashboard UI
 // beyond that page). Returns decrypted credentials + profile data for every

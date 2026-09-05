@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSettings } from "@/lib/settings";
 
+// Never statically render/cache this route — it reads request-time
+// headers/params and hits the database on every call.
+export const dynamic = "force-dynamic";
+
 // Lets the dashboard's "Run now" button kick off an out-of-schedule worker
 // run, on top of the regular cron in .github/workflows/run-bot.yml. The
 // GitHub PAT and repo are entered once on /settings, not as env vars.
