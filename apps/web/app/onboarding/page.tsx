@@ -1,15 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { getCurrentUser } from "@/lib/currentUser";
 
-// TODO: swap the hardcoded userId for a real session once auth is wired up.
 export default function OnboardingPage() {
+  const router = useRouter();
+  const [userId, setUserId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    const user = getCurrentUser();
+    if (!user) {
+      router.push("/");
+      return;
+    }
+    setUserId(user.userId);
+  }, [router]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!userId) return;
     const form = new FormData(e.currentTarget);
-    const userId = form.get("userId");
 
     await fetch("/api/profile", {
       method: "POST",
@@ -17,10 +29,10 @@ export default function OnboardingPage() {
       body: JSON.stringify({
         userId,
         resumeText: form.get("resumeText"),
-        skills: String(form.get("skills")).split(",").map((s) => s.trim()),
+        skills: String(form.get("skills")).split(",").map((s) => s.trim()).filter(Boolean),
         yearsExp: Number(form.get("yearsExp")) || undefined,
-        desiredRoles: String(form.get("desiredRoles")).split(",").map((s) => s.trim()),
-        desiredLocations: String(form.get("desiredLocations")).split(",").map((s) => s.trim()),
+        desiredRoles: String(form.get("desiredRoles")).split(",").map((s) => s.trim()).filter(Boolean),
+        desiredLocations: String(form.get("desiredLocations")).split(",").map((s) => s.trim()).filter(Boolean),
         minCTC: Number(form.get("minCTC")) || undefined,
         phone: form.get("phone"),
       }),
@@ -41,17 +53,16 @@ export default function OnboardingPage() {
     setStatus("Saved. The bot will use this the next time it runs.");
   }
 
+  if (!userId) return <main className="mx-auto max-w-2xl px-6 py-12 text-muted">Loading…</main>;
+
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
       <h1 className="mb-2 text-2xl font-semibold text-ink">One-time setup</h1>
       <p className="mb-8 text-sm text-muted">
-        This runs once. Update it any time from this same page.
+        This runs once. Come back to this page any time to update it.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <input name="userId" placeholder="User ID (from your account)" required
-          className="w-full rounded-md border border-gray-300 px-3 py-2" />
-
         <textarea name="resumeText" placeholder="Paste your resume text" required rows={8}
           className="w-full rounded-md border border-gray-300 px-3 py-2" />
 
