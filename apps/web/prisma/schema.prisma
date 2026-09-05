@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  profile     Profile?
+  credentials PortalCredential[]
+  applications Application[]
+}
+
+// One-time setup data: resume + structured profile used for match scoring
+model Profile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id])
+  resumeText    String   @db.Text
+  resumeFileUrl String?
+  skills        String[] // parsed from resume, editable by user
+  yearsExp      Int?
+  desiredRoles  String[]
+  desiredLocations String[]
+  minCTC        Int?
+  phone         String?  // for WhatsApp notifications
+  updatedAt     DateTime @updatedAt
+}
+
+enum Portal {
+  LINKEDIN
+  NAUKRI
+}
+
+// Encrypted portal login. `cipherText`/`iv`/`authTag` come from lib/crypto.ts
+model PortalCredential {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  portal     Portal
+  username   String
+  cipherText String
+  iv         String
+  authTag    String
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, portal])
+}
+
+enum ApplicationStatus {
+  APPLIED
+  SKIPPED_LOW_SCORE
+  FAILED
+}
+
+model Application {
+  id           String            @id @default(cuid())
+  userId       String
+  user         User              @relation(fields: [userId], references: [id])
+  portal       Portal
+  company      String
+  title        String
+  location     String
+  ctc          String?
+  jobUrl       String
+  matchScore   Int
+  status       ApplicationStatus
+  appliedAt    DateTime          @default(now())
+}
+
+// Singleton row holding every secret/key the app needs, entered through the
+// /settings page instead of environment variables. encryptionKey and
+// internalApiSecret are auto-generated the first time this row is created —
+// nobody has to invent or paste those. DATABASE_URL is the one value that
+// still has to be a real env var, since Prisma needs it before it can even
+// reach this table.
+model Settings {
+  id                  Int      @id @default(1)
+  encryptionKey       String // auto-generated on first read, used by lib/crypto.ts
+  internalApiSecret   String // auto-generated on first read, paste into GitHub Actions secrets once
+  resendApiKey        String?
+  notifyEmailFrom     String?
+  whatsappPhoneId     String?
+  whatsappAccessToken String?
+  githubPat           String? // lets the dashboard's "Run now" button trigger GitHub Actions
+  githubRepo          String? // "yourname/job-bot"
+  updatedAt           DateTime @updatedAt
+}
