@@ -44,11 +44,60 @@ function MatchBadge({ score }: { score: number }) {
   return <span className={`badge ${color}`}>{score}%</span>;
 }
 
+interface RunState {
+  runId: number | null;
+  status: "queued" | "in_progress" | "completed" | null;
+  conclusion: string | null;
+  htmlUrl?: string;
+  actionsUrl?: string;
+  error?: string;
+}
+
+function RunStatusBanner({ run }: { run: RunState }) {
+  if (run.error) {
+    return <p className="mb-4 text-sm text-danger">{run.error}</p>;
+  }
+
+  const label =
+    run.status === "completed"
+      ? run.conclusion === "success"
+        ? "✅ Run completed successfully"
+        : `⚠️ Run finished with status: ${run.conclusion}`
+      : run.status === "in_progress"
+      ? "🔵 Run in progress…"
+      : run.status === "queued"
+      ? "🟡 Queued — waiting for a GitHub Actions runner…"
+      : "Triggered — waiting to confirm it started…";
+
+  const color =
+    run.status === "completed"
+      ? run.conclusion === "success"
+        ? "text-success"
+        : "text-warning"
+      : "text-accent";
+
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-white px-4 py-3">
+      <p className={`text-sm font-medium ${color}`}>{label}</p>
+      {(run.htmlUrl || run.actionsUrl) && (
+        <a
+          href={run.htmlUrl ?? run.actionsUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-sm font-medium text-accent hover:underline"
+        >
+          View live logs on GitHub →
+        </a>
+      )}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [applications, setApplications] = useState<Application[] | null>(null);
   const [running, setRunning] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [run, setRun] = useState<RunState | null>(null);
 
   useEffect(() => {
     const user = getCurrentUser();
@@ -61,12 +110,42 @@ export default function DashboardPage() {
       .then((d) => setApplications(d.applications));
   }, [router]);
 
+  // Poll GitHub for the run's live status every few seconds until it's done.
+  useEffect(() => {
+    if (!run?.runId || run.status === "completed") return;
+    const interval = setInterval(async () => {
+      const res = await fetch(`/api/run?runId=${run.runId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setRun((prev) => (prev ? { ...prev, status: data.status, conclusion: data.conclusion, htmlUrl: data.htmlUrl } : prev));
+      if (data.status === "completed") {
+        const user = getCurrentUser();
+        if (user) {
+          fetch(`/api/applications?userId=${user.userId}`)
+            .then((r) => r.json())
+            .then((d) => setApplications(d.applications));
+        }
+      }
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [run?.runId, run?.status]);
+
   async function handleRunNow() {
     setRunning(true);
-    setMessage(null);
+    setRun(null);
     const res = await fetch("/api/run", { method: "POST" });
     const data = await res.json();
-    setMessage(res.ok ? "Run triggered — check back in a few minutes." : data.error);
+    if (!res.ok) {
+      setRun({ runId: null, status: null, conclusion: null, error: data.error });
+    } else {
+      setRun({
+        runId: data.runId,
+        status: data.status ?? null,
+        conclusion: data.conclusion ?? null,
+        htmlUrl: data.htmlUrl,
+        actionsUrl: data.actionsUrl,
+      });
+    }
     setRunning(false);
   }
 
@@ -96,7 +175,7 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {message && <p className="mb-4 text-sm text-muted">{message}</p>}
+      {run && <RunStatusBanner run={run} />}
 
       {stats && (
         <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">

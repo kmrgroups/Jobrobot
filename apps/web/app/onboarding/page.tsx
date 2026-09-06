@@ -26,6 +26,42 @@ const EMPTY_FORM: ProfileForm = {
 
 type PortalKey = "LINKEDIN" | "NAUKRI";
 
+function PasswordField({ name, placeholder }: { name: string; placeholder: string }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        name={name}
+        type={visible ? "text" : "password"}
+        placeholder={placeholder}
+        className="input pr-10"
+      />
+      <button
+        type="button"
+        onClick={() => setVisible((v) => !v)}
+        aria-label={visible ? "Hide password" : "Show password"}
+        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
+      >
+        {visible ? (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M3 3l18 18" strokeLinecap="round" />
+            <path
+              d="M10.58 10.59a2 2 0 0 0 2.83 2.83M9.36 5.11A9.88 9.88 0 0 1 12 5c6.5 0 10 7 10 7a13.16 13.16 0 0 1-3.05 3.9M6.61 6.61A13.4 13.4 0 0 0 2 12s3.5 7 10 7a9.83 9.83 0 0 0 4.24-.94"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        )}
+      </button>
+    </div>
+  );
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -306,11 +342,9 @@ export default function OnboardingPage() {
                 </p>
               )}
               <input name="LINKEDIN_username" placeholder="Email" className="input mb-2" />
-              <input
+              <PasswordField
                 name="LINKEDIN_password"
-                type="password"
                 placeholder={connectedPortals.LINKEDIN ? "•••••••• (leave blank to keep)" : "Password"}
-                className="input"
               />
             </fieldset>
             <fieldset className="rounded-lg border border-border p-4">
@@ -322,11 +356,9 @@ export default function OnboardingPage() {
                 </p>
               )}
               <input name="NAUKRI_username" placeholder="Email" className="input mb-2" />
-              <input
+              <PasswordField
                 name="NAUKRI_password"
-                type="password"
                 placeholder={connectedPortals.NAUKRI ? "•••••••• (leave blank to keep)" : "Password"}
-                className="input"
               />
             </fieldset>
           </div>
