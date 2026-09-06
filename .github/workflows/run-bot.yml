@@ -40,3 +40,16 @@ jobs:
           WEB_APP_URL: ${{ secrets.WEB_APP_URL }}
           INTERNAL_API_SECRET: ${{ secrets.INTERNAL_API_SECRET }}
         run: npm start
+
+      # Screenshots + raw HTML of every page the bot actually visited, saved
+      # even if the run fails. Download this from the run's summary page
+      # (below the logs, under "Artifacts") to see exactly what the bot saw —
+      # this is how real selectors get identified instead of guessed at.
+      - name: Upload debug snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-output
+          path: worker/debug-output
+          if-no-files-found: ignore
+          retention-days: 7
