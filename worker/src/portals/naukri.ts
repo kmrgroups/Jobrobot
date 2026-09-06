@@ -2,6 +2,7 @@ import type { Browser } from "playwright";
 import type { RunUser } from "../apiClient.js";
 import { computeMatchScore } from "../matchScore.js";
 import { reportApplication } from "../apiClient.js";
+import { captureDebugSnapshot } from "../debugCapture.js";
 
 const MATCH_THRESHOLD = 70;
 
@@ -14,17 +15,27 @@ export async function runNaukri(browser: Browser, user: RunUser) {
 
   try {
     await page.goto("https://www.naukri.com/nlogin/login");
-    // TODO: verify against the live login form.
+    await randomDelay(1000, 1800); // let the page finish rendering before we snapshot it
+    // Snapshot of the real login page as Naukri actually serves it right now —
+    // this is what tells us the real field selectors instead of guessing.
+    await captureDebugSnapshot(page, `naukri-login-${user.userId}`);
+
+    // TODO: verify against the live login form using the snapshot above.
     await page.fill("#usernameField", user.username);
     await page.fill("#passwordField", user.password);
     await randomDelay();
     await page.click('button[type="submit"]');
     await page.waitForLoadState("networkidle");
 
+    // Snapshot of what we landed on after attempting login — confirms
+    // whether login actually succeeded and shows the real search page markup.
+    await captureDebugSnapshot(page, `naukri-post-login-${user.userId}`);
+
     for (const role of user.profile.desiredRoles) {
       const searchUrl = `https://www.naukri.com/${encodeURIComponent(role.replace(/\s+/g, "-"))}-jobs`;
       await page.goto(searchUrl);
       await randomDelay();
+      await captureDebugSnapshot(page, `naukri-search-${user.userId}-${role.replace(/\s+/g, "-")}`);
 
       // TODO: replace with the real job-card selector on Naukri's search results.
       const jobCards = await page.$$(".jobTuple");
@@ -77,6 +88,7 @@ export async function runNaukri(browser: Browser, user: RunUser) {
     }
   } catch (err) {
     console.error(`Naukri run failed for user ${user.userId}:`, err);
+    await captureDebugSnapshot(page, `naukri-error-${user.userId}`);
   } finally {
     await page.close();
   }

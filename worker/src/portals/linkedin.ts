@@ -2,6 +2,7 @@ import type { Browser } from "playwright";
 import type { RunUser } from "../apiClient.js";
 import { computeMatchScore } from "../matchScore.js";
 import { reportApplication } from "../apiClient.js";
+import { captureDebugSnapshot } from "../debugCapture.js";
 
 const MATCH_THRESHOLD = 70;
 
@@ -17,6 +18,9 @@ export async function runLinkedIn(browser: Browser, user: RunUser) {
 
   try {
     await page.goto("https://www.linkedin.com/login");
+    await randomDelay(1000, 1800);
+    await captureDebugSnapshot(page, `linkedin-login-${user.userId}`);
+
     // TODO: verify these selectors against the live login page — LinkedIn
     // changes field names/ids periodically.
     await page.fill("#username", user.username);
@@ -24,6 +28,7 @@ export async function runLinkedIn(browser: Browser, user: RunUser) {
     await randomDelay();
     await page.click('button[type="submit"]');
     await page.waitForLoadState("networkidle");
+    await captureDebugSnapshot(page, `linkedin-post-login-${user.userId}`);
 
     // TODO: LinkedIn may present a CAPTCHA or 2FA/checkpoint here. Detect it
     // (e.g. by URL containing "checkpoint") and bail out gracefully rather
@@ -94,6 +99,7 @@ export async function runLinkedIn(browser: Browser, user: RunUser) {
     }
   } catch (err) {
     console.error(`LinkedIn run failed for user ${user.userId}:`, err);
+    await captureDebugSnapshot(page, `linkedin-error-${user.userId}`);
   } finally {
     await page.close();
   }
