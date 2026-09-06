@@ -1,0 +1,42 @@
+name: Run job bot
+
+# Three ways this can start:
+# 1. On a schedule, every 2 hours, automatically.
+# 2. "repository_dispatch" — this is what the dashboard's "Run now" button
+#    triggers via the GitHub API (see apps/web/app/api/run/route.ts).
+# 3. "workflow_dispatch" — lets you trigger it manually from the GitHub
+#    Actions tab in your browser too, useful for testing this file itself.
+on:
+  schedule:
+    - cron: "0 */2 * * *"
+  repository_dispatch:
+    types: [manual-run]
+  workflow_dispatch: {}
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install worker dependencies
+        run: npm install
+
+      - name: Install Playwright browser (Chromium only)
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the bot
+        env:
+          WEB_APP_URL: ${{ secrets.WEB_APP_URL }}
+          INTERNAL_API_SECRET: ${{ secrets.INTERNAL_API_SECRET }}
+        run: npm start
