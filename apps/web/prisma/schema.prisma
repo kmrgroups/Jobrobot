@@ -110,5 +110,7 @@ model Settings {
   whatsappAccessToken String?
   githubPat           String? // lets the dashboard's "Run now" button trigger GitHub Actions
   githubRepo          String? // "yourname/job-bot"
+  linkedinEnabled     Boolean  @default(true) // toggle on the Settings page — off means the worker skips this portal entirely
+  naukriEnabled       Boolean  @default(true)
   updatedAt           DateTime @updatedAt
 }

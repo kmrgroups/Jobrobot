@@ -28,3 +28,17 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ id: credential.id, portal: credential.portal, username: credential.username });
 }
+
+// Lets the onboarding page show "already connected as ___" for each portal
+// without ever exposing the encrypted password back to the browser.
+export async function GET(req: NextRequest) {
+  const userId = req.nextUrl.searchParams.get("userId");
+  if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
+
+  const credentials = await db.portalCredential.findMany({
+    where: { userId },
+    select: { portal: true, username: true },
+  });
+
+  return NextResponse.json({ credentials });
+}

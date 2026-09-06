@@ -23,6 +23,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "portal must be LINKEDIN or NAUKRI" }, { status: 400 });
   }
 
+  // Respect the on/off toggle from the Settings page — if a portal is
+  // switched off, act as if nobody has credentials for it, so the worker
+  // skips it entirely without needing any changes on its side.
+  const portalEnabled = portal === "LINKEDIN" ? settings.linkedinEnabled : settings.naukriEnabled;
+  if (!portalEnabled) {
+    return NextResponse.json({ runs: [] });
+  }
+
   const credentials = await db.portalCredential.findMany({
     where: { portal },
     include: { user: { include: { profile: true } } },

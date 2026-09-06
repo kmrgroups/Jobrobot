@@ -28,6 +28,8 @@ export async function updateSettings(fields: Partial<{
   whatsappAccessToken: string;
   githubPat: string;
   githubRepo: string;
+  linkedinEnabled: boolean;
+  naukriEnabled: boolean;
 }>) {
   await getSettings(); // ensure the row exists first
   return db.settings.update({ where: { id: 1 }, data: fields });

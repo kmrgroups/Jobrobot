@@ -24,6 +24,8 @@ export async function POST(req: NextRequest) {
     whatsappAccessToken: body.whatsappAccessToken,
     githubPat: body.githubPat,
     githubRepo: body.githubRepo,
+    linkedinEnabled: typeof body.linkedinEnabled === "boolean" ? body.linkedinEnabled : undefined,
+    naukriEnabled: typeof body.naukriEnabled === "boolean" ? body.naukriEnabled : undefined,
   });
   const { encryptionKey, ...safe } = updated;
   return NextResponse.json(safe);

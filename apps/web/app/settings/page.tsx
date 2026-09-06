@@ -10,6 +10,8 @@ interface SettingsData {
   whatsappAccessToken?: string;
   githubPat?: string;
   githubRepo?: string;
+  linkedinEnabled: boolean;
+  naukriEnabled: boolean;
 }
 
 function CopyField({ label, value }: { label: string; value: string }) {
@@ -35,24 +37,73 @@ function CopyField({ label, value }: { label: string; value: string }) {
   );
 }
 
+function PortalToggle({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-white p-4">
+      <div>
+        <p className="text-sm font-medium text-ink">{label}</p>
+        <p className="mt-0.5 text-xs text-muted">{hint}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative h-7 w-12 shrink-0 rounded-full transition ${checked ? "bg-accent" : "bg-border"}`}
+      >
+        <span
+          className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${
+            checked ? "left-6" : "left-1"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const [data, setData] = useState<SettingsData | null>(null);
+  const [linkedinEnabled, setLinkedinEnabled] = useState(true);
+  const [naukriEnabled, setNaukriEnabled] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch("/api/settings").then((r) => r.json()).then(setData);
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((d: SettingsData) => {
+        setData(d);
+        setLinkedinEnabled(d.linkedinEnabled ?? true);
+        setNaukriEnabled(d.naukriEnabled ?? true);
+      });
   }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setSaving(true);
     const form = new FormData(e.currentTarget);
-    const body = Object.fromEntries(form.entries());
+    const body = {
+      ...Object.fromEntries(form.entries()),
+      linkedinEnabled,
+      naukriEnabled,
+    };
     const res = await fetch("/api/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     setData(await res.json());
+    setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -81,6 +132,28 @@ export default function SettingsPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+        <fieldset className="card p-5">
+          <legend className="px-1 text-sm font-semibold text-ink">🎯 Active portals</legend>
+          <p className="mb-3 mt-1 text-xs text-muted">
+            Turn a portal off to skip it completely on the next run — the bot won&apos;t log in,
+            search, or apply on that site until you switch it back on.
+          </p>
+          <div className="space-y-3">
+            <PortalToggle
+              label="LinkedIn"
+              hint={linkedinEnabled ? "The bot will run on LinkedIn." : "Off — LinkedIn will be skipped entirely."}
+              checked={linkedinEnabled}
+              onChange={setLinkedinEnabled}
+            />
+            <PortalToggle
+              label="Naukri"
+              hint={naukriEnabled ? "The bot will run on Naukri." : "Off — Naukri will be skipped entirely."}
+              checked={naukriEnabled}
+              onChange={setNaukriEnabled}
+            />
+          </div>
+        </fieldset>
+
         <fieldset className="card p-5">
           <legend className="px-1 text-sm font-semibold text-ink">📧 Email notifications (Resend)</legend>
           <div className="mt-3 space-y-3">
@@ -124,7 +197,9 @@ export default function SettingsPage() {
         </fieldset>
 
         <div className="flex items-center gap-4">
-          <button type="submit" className="btn-primary">Save settings</button>
+          <button type="submit" disabled={saving} className="btn-primary">
+            {saving ? "Saving…" : "Save settings"}
+          </button>
           {saved && <p className="text-sm text-success">Saved.</p>}
         </div>
       </form>
